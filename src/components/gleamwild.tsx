@@ -48,6 +48,8 @@ export function Gleamwild() {
   const look = useRef({ yaw: 0, pitch: 0 });
   const ringScale = useRef(1);
   const tilt = useRef(false);
+  const turn = useRef(0);
+  const dragging = useRef(false);
   const keys = useRef<Record<string, boolean>>({});
   const audio = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -83,13 +85,11 @@ export function Gleamwild() {
     let raf = 0;
     const tick = (t: number) => {
       const held = keys.current;
-      if (!tilt.current) {
-        if (held.ArrowLeft || held.KeyA) look.current.yaw -= 1.4;
-        if (held.ArrowRight || held.KeyD) look.current.yaw += 1.4;
-        if (held.ArrowUp || held.KeyW) look.current.pitch -= 0.9;
-        if (held.ArrowDown || held.KeyS) look.current.pitch += 0.9;
-        look.current.pitch = Math.max(-30, Math.min(30, look.current.pitch));
-      }
+      if (held.ArrowLeft || held.KeyA || turn.current < 0) look.current.yaw -= 1.8;
+      if (held.ArrowRight || held.KeyD || turn.current > 0) look.current.yaw += 1.8;
+      if (held.ArrowUp || held.KeyW) look.current.pitch -= 1.1;
+      if (held.ArrowDown || held.KeyS) look.current.pitch += 1.1;
+      look.current.pitch = Math.max(-30, Math.min(30, look.current.pitch));
       const nodes = stageRef.current?.querySelectorAll<HTMLElement>(".gw-kin");
       nodes?.forEach((el) => {
         if (el.dataset.lock === "1") return;
@@ -106,7 +106,7 @@ export function Gleamwild() {
         el.style.transform = `translate(-50%, -50%) translateY(${bob}px)`;
       });
       if (worldRef.current && !cam) {
-        worldRef.current.style.backgroundPosition = `${50 - look.current.yaw * 0.32}% ${40 + look.current.pitch * 0.35}%`;
+        worldRef.current.style.transform = `translate3d(${-look.current.yaw * 3.2}px, ${look.current.pitch * 3.2}px, 0)`;
       }
       if (ringRef.current) {
         const u = (t % 1200) / 1200;
@@ -166,87 +166,80 @@ export function Gleamwild() {
     if (entering.current) return;
     entering.current = true;
     try {
-      unlock();
       let got = false;
       if (wantCam) {
         setCamNote("Opening the camera…");
         const video = videoRef.current;
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-          setCamNote("This browser is blocking the camera. Open gleamwild.vercel.app in Safari or Chrome, not inside X.");
+          setCamNote("This browser is blocking the camera. Open gleamwild.vercel.app in Safari or Chrome.");
           return;
         }
         if (video) {
           video.muted = true;
           video.defaultMuted = true;
           video.playsInline = true;
-          video.setAttribute("playsinline", "true");
-          video.setAttribute("webkit-playsinline", "true");
+          video.setAttribute("muted", "");
+          video.setAttribute("playsinline", "");
+          video.setAttribute("webkit-playsinline", "");
+          video.classList.add("on");
         }
-        const tries: MediaStreamConstraints[] = [
-          { video: { facingMode: { ideal: "environment" } }, audio: false },
-          { video: true, audio: false },
+        worldRef.current?.classList.add("off");
+        const attempts: MediaStreamConstraints[] = [
+          { audio: false, video: { facingMode: "environment" } },
+          { audio: false, video: true },
         ];
-        const Device = DeviceOrientationEvent as unknown as {
-          requestPermission?: () => Promise<string>;
-        };
-        let orientPromise: Promise<string> | null = null;
         let stream: MediaStream | null = null;
         let reason = "blocked";
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(tries[0]);
-        } catch (err) {
-          reason = err instanceof Error ? err.name : "blocked";
+        for (const constraints of attempts) {
           try {
-            stream = await navigator.mediaDevices.getUserMedia(tries[1]);
-          } catch (err2) {
-            reason = err2 instanceof Error ? err2.name : reason;
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            break;
+          } catch (err) {
+            reason = err instanceof DOMException ? err.name : err instanceof Error ? err.name : "blocked";
           }
         }
-        try {
-          orientPromise = typeof Device.requestPermission === "function" ? Device.requestPermission() : null;
-        } catch {
-          orientPromise = null;
-        }
         if (!stream || !video) {
-          const inApp = /FBAN|FBAV|Instagram|Twitter|Line\//i.test(navigator.userAgent);
+          video?.classList.remove("on");
+          worldRef.current?.classList.remove("off");
           setCamNote(
             reason === "NotAllowedError"
-              ? "Camera was blocked. Allow it in the browser prompt, or open this page in Safari or Chrome."
-              : inApp
-                ? "The X app browser blocks the camera. Open the menu and choose Safari or Chrome."
-                : "Could not open the camera. Use Safari or Chrome and allow the prompt. Walk the field still works.",
+              ? "Safari or Chrome blocked the camera. Tap the lock or camera icon in the address bar, choose Allow, then tap Open the camera again."
+              : reason === "NotFoundError"
+                ? "This device has no camera the page can use. Walk the field still works."
+                : `Camera failed (${reason}). Walk the field still works.`,
           );
           return;
         }
         streamRef.current = stream;
         video.srcObject = stream;
+        video.classList.add("on");
         try {
           await video.play();
-        } catch {
+        } catch (err) {
           stream.getTracks().forEach((track) => track.stop());
-          setCamNote("The camera would not start. Open this page in Safari or Chrome.");
+          video.classList.remove("on");
+          worldRef.current?.classList.remove("off");
+          const name = err instanceof Error ? err.name : "play";
+          setCamNote(`The camera started then stopped (${name}). Allow inline video and try again.`);
           return;
         }
         got = true;
-        if (orientPromise) {
-          void orientPromise.then((answer) => {
-            if (answer !== "granted") return;
-            let origin: number | null = null;
-            window.addEventListener("deviceorientation", (e) => {
-              if (e.alpha == null || e.beta == null) return;
-              if (origin == null) origin = e.alpha;
-              const delta = wrap(e.alpha - origin);
-              if (Math.abs(delta) < 3 && !tilt.current) return;
-              tilt.current = true;
-              look.current.yaw = delta;
-              look.current.pitch = Math.max(-30, Math.min(30, (e.beta - 70) * 0.55));
-            });
-          }).catch(() => undefined);
-        }
       }
+      const Device = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
+      if (typeof Device.requestPermission !== "function") {
+        let origin: number | null = null;
+        window.addEventListener("deviceorientation", (e) => {
+          if (dragging.current || turn.current !== 0) return;
+          if (e.alpha == null || e.beta == null) return;
+          if (origin == null) origin = e.alpha;
+          look.current.yaw = wrap(e.alpha - origin);
+          look.current.pitch = Math.max(-30, Math.min(30, (e.beta - 70) * 0.55));
+        });
+      }
+      unlock();
       setCam(got);
       setCamNote("");
-      setBanner(got ? "Turn in place. Tap what you find." : "Drag to look around. Tap a gleam.");
+      setBanner(got ? "Turn left or right. Tap a gleam." : "Hold Turn, or drag. Tap a gleam.");
       const spots = [
         { yaw: 0, pitch: -2 },
         { yaw: -34, pitch: 5 },
@@ -393,27 +386,31 @@ export function Gleamwild() {
 
   return (
     <main
-      className={field && meet ? "gleam meeting" : "gleam"}
+      className={field ? (meet ? "gleam live meeting" : "gleam live") : "gleam"}
       onPointerDown={(e) => {
         if (!field) return;
         const target = e.target as HTMLElement;
-        if (target.closest("button, a, .gw-title, .gw-sheet, .gw-dex, .gw-hud")) return;
+        if (target.closest("button, a, .gw-title, .gw-sheet, .gw-dex, .gw-hud, .gw-turns")) return;
+        dragging.current = true;
         const startX = e.clientX;
         const startY = e.clientY;
         const yaw = look.current.yaw;
         const pitch = look.current.pitch;
         const id = e.pointerId;
         const move = (ev: PointerEvent) => {
-          if (ev.pointerId !== id || tilt.current) return;
-          look.current.yaw = yaw + (ev.clientX - startX) * 0.16;
-          look.current.pitch = Math.max(-30, Math.min(30, pitch + (ev.clientY - startY) * 0.1));
+          if (ev.pointerId !== id) return;
+          look.current.yaw = yaw + (ev.clientX - startX) * 0.28;
+          look.current.pitch = Math.max(-30, Math.min(30, pitch + (ev.clientY - startY) * 0.16));
         };
         const stop = () => {
+          dragging.current = false;
           window.removeEventListener("pointermove", move);
           window.removeEventListener("pointerup", stop);
+          window.removeEventListener("pointercancel", stop);
         };
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", stop);
+        window.addEventListener("pointercancel", stop);
       }}
     >
       <video ref={videoRef} className={cam ? "gw-cam on" : "gw-cam"} playsInline muted autoPlay />
@@ -444,6 +441,45 @@ export function Gleamwild() {
       ) : null}
 
       {field && banner ? <p className="gw-banner">{banner}</p> : null}
+
+      {field ? (
+        <div className="gw-turns">
+          <button
+            type="button"
+            className="gw-turn"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              turn.current = -1;
+            }}
+            onPointerUp={() => {
+              turn.current = 0;
+            }}
+            onPointerCancel={() => {
+              turn.current = 0;
+            }}
+          >
+            Turn left
+          </button>
+          <button
+            type="button"
+            className="gw-turn"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              turn.current = 1;
+            }}
+            onPointerUp={() => {
+              turn.current = 0;
+            }}
+            onPointerCancel={() => {
+              turn.current = 0;
+            }}
+          >
+            Turn right
+          </button>
+        </div>
+      ) : null}
 
       {field && activeKin ? (
         <button
