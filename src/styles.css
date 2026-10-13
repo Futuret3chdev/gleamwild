@@ -572,7 +572,7 @@ h2 {
   inset: 0;
   background: #0c0d10;
   overflow: hidden;
-  touch-action: none;
+  touch-action: manipulation;
   user-select: none;
 }
 
@@ -712,6 +712,16 @@ h2 {
   font-style: normal;
   color: var(--color-muted);
   font-size: 0.8125rem;
+}
+
+.gw-title,
+.gw-sheet,
+.gw-dex,
+.gw-hud,
+.gw-partner,
+.gw-title .btn,
+.gw-sheet .btn {
+  touch-action: manipulation;
 }
 
 .gw-title,
