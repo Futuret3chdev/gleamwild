@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Credit } from "@/components/trailer";
 import { advantage, byId, rollSpecies, type Species } from "@/game/gleam/bestiary";
@@ -61,6 +60,7 @@ export function Gleamwild() {
   const [meet, setMeet] = useState<Meet | null>(null);
   const [dex, setDex] = useState(false);
   const [banner, setBanner] = useState("");
+  const [camNote, setCamNote] = useState("");
 
   useEffect(() => {
     setSave(loadSave());
@@ -156,24 +156,77 @@ export function Gleamwild() {
     unlock();
     tone(520, 0.08, 0.04);
     let got = false;
-    if (wantCam && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false,
-        });
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          await video.play();
+    if (wantCam) {
+      const video = videoRef.current;
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+        setCamNote("This browser is blocking the camera. Open the Gleamwild link in Safari or Chrome, not inside the X app.");
+        return;
+      }
+      if (video) {
+        video.muted = true;
+        video.defaultMuted = true;
+        video.playsInline = true;
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("webkit-playsinline", "true");
+      }
+      const Device = DeviceOrientationEvent as unknown as {
+        requestPermission?: () => Promise<string>;
+      };
+      const orientPromise =
+        typeof Device.requestPermission === "function" ? Device.requestPermission() : null;
+      const tries: MediaStreamConstraints[] = [
+        { video: { facingMode: { ideal: "environment" } }, audio: false },
+        { video: true, audio: false },
+      ];
+      let stream: MediaStream | null = null;
+      let reason = "blocked";
+      for (const constraints of tries) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          break;
+        } catch (err) {
+          reason = err instanceof Error ? err.name : "blocked";
         }
-        got = true;
+      }
+      if (!stream || !video) {
+        const inApp = /FBAN|FBAV|Instagram|Twitter|Line\//i.test(navigator.userAgent);
+        setCamNote(
+          reason === "NotAllowedError"
+            ? "Camera permission was denied. Allow it, or open this page in Safari or Chrome."
+            : inApp
+              ? "The in-app browser is blocking the camera. Use the menu and open this page in Safari or Chrome."
+              : "Could not open the camera. Open this page in Safari or Chrome and allow the prompt.",
+        );
+        return;
+      }
+      streamRef.current = stream;
+      video.srcObject = stream;
+      try {
+        await video.play();
       } catch {
-        got = false;
+        stream.getTracks().forEach((track) => track.stop());
+        setCamNote("The camera would not start. Open this page in Safari or Chrome.");
+        return;
+      }
+      got = true;
+      if (orientPromise) {
+        void orientPromise.then((answer) => {
+          if (answer !== "granted") return;
+          let origin: number | null = null;
+          window.addEventListener("deviceorientation", (e) => {
+            if (e.alpha == null || e.beta == null) return;
+            if (origin == null) origin = e.alpha;
+            const delta = wrap(e.alpha - origin);
+            if (Math.abs(delta) < 3 && !tilt.current) return;
+            tilt.current = true;
+            look.current.yaw = delta;
+            look.current.pitch = Math.max(-30, Math.min(30, (e.beta - 70) * 0.55));
+          });
+        });
       }
     }
     setCam(got);
+    setCamNote("");
     setBanner(got ? "Turn in place. Tap what you find." : "Drag to look around. Tap a gleam.");
     const spots = [
       { yaw: 0, pitch: -2 },
@@ -191,29 +244,6 @@ export function Gleamwild() {
     setSpawns(placed);
     setSave((s) => ({ ...s, seen: Array.from(new Set([...s.seen, ...used])) }));
     setField(true);
-    if (!got) return;
-    try {
-      const Device = DeviceOrientationEvent as unknown as {
-        requestPermission?: () => Promise<string>;
-      };
-      if (typeof Device.requestPermission === "function") {
-        const answer = await Device.requestPermission();
-        if (answer !== "granted") return;
-      }
-    } catch {
-      return;
-    }
-    let origin: number | null = null;
-    const onOrient = (e: DeviceOrientationEvent) => {
-      if (e.alpha == null || e.beta == null) return;
-      if (origin == null) origin = e.alpha;
-      const delta = wrap(e.alpha - origin);
-      if (Math.abs(delta) < 3 && !tilt.current) return;
-      tilt.current = true;
-      look.current.yaw = delta;
-      look.current.pitch = Math.max(-30, Math.min(30, (e.beta - 70) * 0.55));
-    };
-    window.addEventListener("deviceorientation", onOrient);
   };
 
   const openSpawn = (spawn: Spawn) => {
@@ -415,13 +445,11 @@ export function Gleamwild() {
           <button type="button" className="btn primary" onClick={() => void enter(true)}>
             Open the camera
           </button>
+          {camNote ? <p className="gw-note">{camNote}</p> : null}
           <button type="button" className="btn ghost" onClick={() => void enter(false)}>
             Walk the field
           </button>
           <Credit />
-          <Link to="/lumenfall" className="gw-quiet">
-            Lumenfall
-          </Link>
         </section>
       ) : null}
 
