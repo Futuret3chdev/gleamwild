@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LumenfallApp } from "@/components/lumenfall";
+import { Gleamwild } from "@/components/gleamwild";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-  return <LumenfallApp />;
+  return <Gleamwild />;
 }

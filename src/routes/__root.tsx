@@ -3,7 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "Lumenfall";
+const APP_NAME = "Gleamwild";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -13,7 +13,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       {
         name: "description",
-        content: "Weave a glass courier through a falling nave. Dash, graze, and spend the nova.",
+        content: "Look through the glass. Catch original kin, weaken them, and throw a prism.",
       },
       { name: "theme-color", content: "#0c0d10" },
     ],
