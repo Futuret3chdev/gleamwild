@@ -418,6 +418,100 @@ h2 {
   margin-top: 12px;
 }
 
+.credit {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.credit .mark {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  flex: none;
+}
+
+.credit .coin {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex: none;
+}
+
+.credit p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.01em;
+}
+
+.credit strong {
+  color: var(--color-fg);
+  font-weight: 500;
+}
+
+.btn.link {
+  background: transparent;
+  color: var(--color-muted);
+  height: 40px;
+  margin-top: 4px;
+}
+
+.trailer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: #0c0d10;
+  overflow: hidden;
+}
+
+.tr-video,
+.tr-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0c0d10;
+}
+
+.tr-tools {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+
+.tr-skip {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-bg) 72%, transparent);
+  color: var(--color-fg);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.tr-card {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 2;
+  background: color-mix(in oklab, var(--color-bg) 78%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+}
+
+.tr-still {
+  filter: brightness(0.45);
+}
+
 .toggle {
   margin-top: 8px;
   height: 44px;

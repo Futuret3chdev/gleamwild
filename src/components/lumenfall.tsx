@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { formatScore, Game, type Snap } from "@/game/game";
+import { Credit, Trailer } from "@/components/trailer";
 
 const initial: Snap = {
   phase: "title",
@@ -25,6 +26,16 @@ export function LumenfallApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
   const [snap, setSnap] = useState<Snap>(initial);
+  const [gate, setGate] = useState<"title" | "trailer">("title");
+
+  const closeTrailer = () => {
+    try {
+      localStorage.setItem("lumenfall-trailer-seen", "1");
+    } catch {
+      /* private mode */
+    }
+    setGate("title");
+  };
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -44,6 +55,11 @@ export function LumenfallApp() {
     ro.observe(frame);
     const game = new Game(canvas, setSnap);
     gameRef.current = game;
+    try {
+      if (localStorage.getItem("lumenfall-trailer-seen") !== "1") setGate("trailer");
+    } catch {
+      setGate("trailer");
+    }
     const onVis = () => {
       if (document.hidden && game.phase === "play") game.pause();
       else game.audioResume();
@@ -75,6 +91,7 @@ export function LumenfallApp() {
     <main className="app">
       <div className="frame" ref={frameRef}>
         <canvas ref={canvasRef} aria-label="Lumenfall" />
+        {gate === "trailer" && snap.phase === "title" ? <Trailer onDone={closeTrailer} /> : null}
         {snap.phase === "play" || snap.phase === "pause" ? (
           <>
             <header className="hud">
@@ -164,7 +181,7 @@ export function LumenfallApp() {
           </>
         ) : null}
 
-        {snap.phase === "title" ? (
+        {snap.phase === "title" && gate !== "trailer" ? (
           <section className="sheet" aria-label="Start">
             <h1>Lumenfall</h1>
             <p className="dek">Weave a glass courier through the falling nave.</p>
@@ -190,6 +207,10 @@ export function LumenfallApp() {
                 Best <strong>{formatScore(snap.best)}</strong>
               </p>
             ) : null}
+            <Credit />
+            <button type="button" className="btn link" onClick={() => setGate("trailer")}>
+              Watch trailer
+            </button>
           </section>
         ) : null}
 
@@ -250,6 +271,7 @@ export function LumenfallApp() {
               >
                 {snap.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
               </button>
+              <Credit />
             </div>
           </div>
         ) : null}
